@@ -1,3 +1,4 @@
+#![allow(unused, dead_code)]
 
 use std::io::{self, prelude::*};
 

@@ -3,19 +3,19 @@
 
 ```bash
 // declaring a variable
-bandz cash = 51456.99
-bandz 10k = 10000
+stash racks = 51456.99
+stash 10k = 10000
 
 // function declaration
 scheme add() {
-    cash = cash + 10k
+    racks = racks + 10k
 }
 
 // calling functions
 add()
 
 // conditionals
-fr cash > 50000 {
+fr racks > 50000 {
     spill("loaded")
 } cap {
     spill("broke")
@@ -23,7 +23,7 @@ fr cash > 50000 {
 
 // loops
 spin 5 {
-    cash = cash + 10k
-    spill(cash)
+    racks = racks + 10k
+    spill(racks)
 }
 ```

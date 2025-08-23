@@ -3,11 +3,24 @@ use std::fmt;
 #[derive(Debug, PartialEq, Copy, Clone)]
 pub enum TokenType {
     Number(f64),
+    String,
+    Identifier,
 
     Plus, Minus, Multiply, Divide, Power,
+    LeftParen, RightParen,
     Less, Greater,
     LessEq, GreaterEq, EqualEq, BangEq,
-    LeftParen, RightParen,
+    False, True,
+    And, Or, Bang,
+
+    Let, Equal,
+    If, Else,
+    Print,
+    Loop,
+    Func, Return,
+    NewLn,
+    LeftBrack, RightBrack,
+    Nil,
 
     EOF,
 }
@@ -23,9 +36,11 @@ impl fmt::Display for TokenType {
             TokenType::Less => write!(f, "<"),
             TokenType::Greater => write!(f, ">"),
             TokenType::EqualEq => write!(f, "=="),
+            TokenType::Equal => write!(f, "="),
             TokenType::LessEq => write!(f, "<="),
             TokenType::GreaterEq => write!(f, ">="),
             TokenType::BangEq => write!(f, "!="),
+            TokenType::Bang => write!(f, "!"),
             TokenType::LeftParen => write!(f, "("),
             TokenType::RightParen => write!(f, ")"),
             _ => write!(f, "")

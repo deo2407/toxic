@@ -18,7 +18,7 @@ impl Lexer {
     }
 
     pub fn lex_all(source: String) -> Result<Vec<Token>, String> {
-        let mut lexer = Lexer::new(source.to_string());  
+        let mut lexer = Lexer::new(source);  
         let mut tokens = Vec::new(); 
 
         loop {
@@ -41,6 +41,10 @@ impl Lexer {
         }
 
         let c = self.advance();
+
+        if Self::is_char(c) {
+            return self.identifier();
+        }
 
         if Self::is_digit(c) {
             return self.number();
@@ -70,7 +74,7 @@ impl Lexer {
                 if self.match_char('=') {
                     return self.make_token(TokenType::BangEq);
                 }
-                Err(format!("Unknow token {c}"))
+                self.make_token(TokenType::Bang) 
             },
             '=' => {
                 if self.match_char('=') {
@@ -88,6 +92,74 @@ impl Lexer {
             lexeme: self.get_lexeme(),
             line: self.line,
         })
+    }
+
+    fn identifier(&mut self) -> Result<Token, String> {
+        while let Some(c) = self.peek() {
+            if Self::is_char(c) || Self::is_digit(c) {
+                self.advance();
+            } else {
+                break;
+            }
+        }
+
+        self.make_token(self.identifier_type())
+    }
+
+    fn number(&mut self) -> Result<Token, String> {
+        while Self::is_digit(self.peek().unwrap_or(' ')) { self.advance(); }
+
+        if self.peek().unwrap_or(' ') == '.' {
+            self.advance();
+            while Self::is_digit(self.peek().unwrap_or(' ')) { self.advance(); }
+        }
+
+        let num_str = self.chars[self.start..self.current]
+            .iter()
+            .collect::<String>();
+        let num: f64 = num_str.parse().unwrap();
+
+        self.make_token(TokenType::Number(num))
+    }
+
+    fn identifier_type(&self) -> TokenType {
+        match self.chars[self.start] {
+            'a' => self.check_keyword(1, "nd", TokenType::And),
+            'e' => self.check_keyword(1, "lse", TokenType::Else),
+            'f' => {
+                match self.chars[self.start + 1] {
+                    'a' => self.check_keyword(2, "lse", TokenType::False),
+                    'u' => self.check_keyword(2, "nc", TokenType::Func),
+                    _ => TokenType::Identifier
+                }
+            },
+            'i' => self.check_keyword(1, "f", TokenType::If),
+            'l' => {
+                match self.chars[self.start + 1] {
+                    'e' => self.check_keyword(2, "t", TokenType::Let),
+                    'o' => self.check_keyword(2, "op", TokenType::Loop),
+                    _ => TokenType::Identifier
+                }
+            },
+            'n' => self.check_keyword(1, "il", TokenType::Nil),
+            'o' => self.check_keyword(1, "r", TokenType::Or),
+            'p' => self.check_keyword(1, "rint", TokenType::Print),
+            'r' => self.check_keyword(1, "eturn", TokenType::Return),
+            't' => self.check_keyword(1, "rue", TokenType::True),
+            _ => TokenType::Identifier
+        }
+    }
+
+    // TODO!! single char identifiers are not recognised!
+    fn check_keyword(&self, start: usize, rest: &str, token_type: TokenType) -> TokenType {
+        let comp_str: String = self.chars[self.start + start..self.start + start + rest.len()].iter().collect();
+
+        if self.current - self.start == start + rest.len() 
+            && comp_str.as_str() == rest {
+
+           return token_type; 
+        }
+        TokenType::Identifier
     }
 
     fn skip_whitespace(&mut self) {
@@ -115,22 +187,6 @@ impl Lexer {
                 _ => break,
             }
         } 
-    }
-
-    fn number(&mut self) -> Result<Token, String> {
-        while Self::is_digit(self.peek().unwrap_or(' ')) { self.advance(); }
-
-        if self.peek().unwrap_or(' ') == '.' {
-            self.advance();
-            while Self::is_digit(self.peek().unwrap_or(' ')) { self.advance(); }
-        }
-
-        let num_str = self.chars[self.start..self.current]
-            .iter()
-            .collect::<String>();
-        let num: f64 = num_str.parse().unwrap();
-
-        self.make_token(TokenType::Number(num))
     }
 
     fn match_char(&mut self, expect: char) -> bool {
@@ -170,6 +226,10 @@ impl Lexer {
 
     fn is_digit(c: char) -> bool {
         c >= '0' && c <= '9'
+    }
+
+    fn is_char(c: char) -> bool {
+        (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || c == '_'
     }
 }
 
@@ -245,6 +305,26 @@ mod tests {
         assert_eq!(tokens[1].token_type, TokenType::LessEq);
         assert_eq!(tokens[2].token_type, TokenType::BangEq);
         assert_eq!(tokens[3].token_type, TokenType::EqualEq);
+    }
+
+    #[test]
+    fn lex_if_else() {
+        let source = "if else".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::If);
+        assert_eq!(tokens[1].token_type, TokenType::Else);
+    }
+
+    #[test]
+    fn lex_let_ident_loop() {
+        let source = "let fasdf loop a".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Let);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[1].lexeme, "fasdf".to_string());
+        assert_eq!(tokens[2].token_type, TokenType::Loop);
     }
 }
 
