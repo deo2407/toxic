@@ -10,6 +10,7 @@ use crate::parser::Parser;
 mod lexer;
 mod token;
 mod parser;
+mod ast;
 
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
