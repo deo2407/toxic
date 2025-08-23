@@ -28,6 +28,20 @@ pub enum Stmt {
     Return(Option<Expr>),
 }
 
+impl Stmt {
+    pub fn exec(&self) -> Result<(), String> {
+        match self {
+            Stmt::ExprStmt(expr) => { expr.eval()?; }
+            Stmt::PrintStmt(expr) => {
+                let val = expr.eval()?;
+                println!("{val}");
+            },
+            _ => todo!()
+        }
+        Ok(())
+    }
+}
+
 #[derive(Debug)]
 pub enum Expr {
     Literal(Literal),
@@ -65,6 +79,8 @@ impl Expr {
         match (op, left, right) {
             (TokenType::Plus, Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l + r)),
             (TokenType::Plus, Literal::Str(l), Literal::Str(r)) => Ok(Literal::Str(l + &r)),
+            (TokenType::Plus, Literal::Str(s), Literal::Number(n)) => Ok(Literal::Str(s + &n.to_string())),
+            (TokenType::Plus, Literal::Number(n), Literal::Str(s)) => Ok(Literal::Str(s + &n.to_string())),
             
             (TokenType::Minus, Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l - r)),
             (TokenType::Multiply, Literal::Number(l), Literal::Number(r)) => Ok(Literal::Number(l * r)),

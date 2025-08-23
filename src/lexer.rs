@@ -101,6 +101,10 @@ impl Lexer {
 
     fn string(&mut self) -> Result<Token, String> {
         while (!self.is_at_end()) {
+            if self.peek() == Some('\n') {
+                self.line += 1;
+            }
+
             let c = self.advance();
             
             if (c == '"') {

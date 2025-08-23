@@ -16,6 +16,42 @@ impl Parser {
         }
     }
 
+    pub fn parse(&mut self) -> Result<Vec<Stmt>, String> {
+        let mut stmts = Vec::new();
+        while !self.is_at_end() {
+            stmts.push(self.parse_stmt()?);
+        }
+        Ok(stmts)
+    } 
+
+    fn parse_stmt(&mut self) -> Result<Stmt, String> {
+        if self.match_token(TokenType::Print) {
+            return self.parse_print_stmt();
+        }
+        return self.parse_expr_stmt();
+        
+    }
+
+    fn parse_print_stmt(&mut self) -> Result<Stmt, String> {
+        // after consuming print the next thing must be expression
+        let value = self.parse_expr()?;
+
+        if self.match_token(TokenType::NewLn) {
+            // new line consumed
+        } else {
+            return Err("Expect new line after statement".into());
+        }
+
+        Ok(Stmt::PrintStmt(value))
+    }
+
+    fn parse_expr_stmt(&mut self) -> Result<Stmt, String> {
+        match self.parse_expr() {
+            Ok(expr) => Ok(Stmt::ExprStmt(expr)),
+            Err(err) => Err(err)
+        }
+    }
+
     pub fn parse_expr(&mut self) -> Result<Expr, String> {
         self.parse_expr_bp(0.0)
     }
@@ -25,6 +61,10 @@ impl Parser {
         let token_type = token.token_type;
 
         let mut lhs = match &token.token_type {
+            TokenType::True => Expr::Literal(Literal::Bool(true)),
+            TokenType::False => Expr::Literal(Literal::Bool(false)),
+            TokenType::Nil => Expr::Literal(Literal::Nil),
+            TokenType::String => Expr::Literal(Literal::Str(token.lexeme[1..token.lexeme.len()-1].to_string())),
             TokenType::Number(n) => Expr::Literal(Literal::Number(*n)),
             TokenType::LeftParen => {
                 let expr = self.parse_expr_bp(0.0)?;
@@ -43,7 +83,7 @@ impl Parser {
             let op = match self.match_operator() {
                 Some(op) => op,
                 None => match &self.peek().token_type {
-                    TokenType::EOF | TokenType::RightParen => break,
+                    TokenType::EOF | TokenType::NewLn | TokenType::RightParen => break,
                     _ => return Self::report_unexpected_token(self.peek()),
                 },
             };
@@ -62,8 +102,9 @@ impl Parser {
                 };
                 continue;
             } else {
-                return Self::report_unexpected_token(self.advance()); 
+                return Self::report_unexpected_token(self.advance());
             }
+
         }
 
         Ok(lhs)
@@ -95,6 +136,14 @@ impl Parser {
             token.line,
             token.lexeme
         ))
+    }
+
+    fn match_token(&mut self, token_type: TokenType) -> bool {
+        if self.peek().token_type == token_type {
+            self.advance();
+            return true;
+        }
+        false
     }
 
     fn match_operator(&mut self) -> Option<TokenType> {
@@ -272,7 +321,7 @@ mod tests {
         let mut p = Parser::new(tokens); 
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval().unwrap(), 24.0)
+        assert_eq!(expr.eval().unwrap(), Literal::Number(24.0));
     }
 
     #[test]
@@ -282,7 +331,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval().unwrap(), 13.5);
+        assert_eq!(expr.eval().unwrap(), Literal::Number(13.5));
     }
 
     #[test]
@@ -292,7 +341,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval().unwrap(), 1.0);
+        assert_eq!(expr.eval().unwrap(), Literal::Bool(true));
     }
 
     #[test]
@@ -302,17 +351,17 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval().unwrap(), 1.0);
+        assert_eq!(expr.eval().unwrap(), Literal::Bool(true));
     }
 
     #[test]
     fn eval_less_nested() {
-        let tokens = Lexer::lex_all("10 ^ 3 / 5 < 7 * 200".to_string()).unwrap();
+        let tokens = Lexer::lex_all("10 ^ 3 / 5 > 20 * 200".to_string()).unwrap();
 
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval().unwrap(), 1.0);
+        assert_eq!(expr.eval().unwrap(), Literal::Bool(false));
     }
 }
 

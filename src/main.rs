@@ -6,6 +6,7 @@ use std::env;
 
 use crate::lexer::Lexer;
 use crate::parser::Parser;
+use crate::token::TokenType;
 
 mod lexer;
 mod token;
@@ -22,7 +23,7 @@ fn repl() {
         
         let mut contents = String::new();
         io::stdin().read_line(&mut contents).unwrap();
-        let contents = contents.trim().to_string();
+        let mut contents = contents.trim().to_string();
 
         if contents.is_empty() {
             continue;
@@ -30,6 +31,7 @@ fn repl() {
             break;
         }
 
+        contents.push('\n');
         let tokens = match Lexer::lex_all(contents) {
             Ok(tokens) => tokens,
             Err(e) => {
@@ -39,21 +41,36 @@ fn repl() {
         };
 
         let mut p = Parser::new(tokens);
-        let expr = match p.parse_expr() {
-            Ok(expr) => expr,
+
+        let stmts = match p.parse() {
+            Ok(stmts) => stmts,
             Err(err) => {
+                println!("aaa");
                 println!("{err}");
                 continue;
             }
         };
 
-        match expr.eval() {
-            Ok(res) => {
-                println!("{res}");  
-                println!("{expr}");  
-            },
-            Err(err) => eprintln!("{err}")
+        for stmt in stmts {
+            if let Err(e) = stmt.exec() {
+                eprintln!("{e}");
+            }
         }
+        // let expr = match p.parse_expr() {
+        //     Ok(expr) => expr,
+        //     Err(err) => {
+        //         println!("{err}");
+        //         continue;
+        //     }
+        // };
+        //
+        // match expr.eval() {
+        //     Ok(res) => {
+        //         println!("{res}");  
+        //         println!("{expr}");  
+        //     },
+        //     Err(err) => eprintln!("{err}")
+        // }
     }
 }
 
