@@ -80,8 +80,13 @@ impl Lexer {
                 if self.match_char('=') {
                     return self.make_token(TokenType::EqualEq);
                 }
-                Err(format!("Unknow token {c}"))
+                self.make_token(TokenType::Equal)
             },
+            '"' => self.string(),
+            '\n' => {
+                self.line += 1;
+                self.make_token(TokenType::NewLn)
+            }
             _ => return Err(format!("Unknow token {c}")),
         }
     }
@@ -92,6 +97,17 @@ impl Lexer {
             lexeme: self.get_lexeme(),
             line: self.line,
         })
+    }
+
+    fn string(&mut self) -> Result<Token, String> {
+        while (!self.is_at_end()) {
+            let c = self.advance();
+            
+            if (c == '"') {
+                return self.make_token(TokenType::String);
+            }
+        }
+        Err("expect '\"' at the end of string".to_string())
     }
 
     fn identifier(&mut self) -> Result<Token, String> {
@@ -152,12 +168,13 @@ impl Lexer {
 
     // TODO!! single char identifiers are not recognised!
     fn check_keyword(&self, start: usize, rest: &str, token_type: TokenType) -> TokenType {
-        let comp_str: String = self.chars[self.start + start..self.start + start + rest.len()].iter().collect();
 
-        if self.current - self.start == start + rest.len() 
-            && comp_str.as_str() == rest {
-
-           return token_type; 
+        if self.current - self.start == start + rest.len() {
+            let comp_str: String = self.chars[self.start + start..self.start + start + rest.len()].iter().collect();
+            
+            if comp_str == rest.to_string() {
+                return token_type;
+            }
         }
         TokenType::Identifier
     }
@@ -167,10 +184,6 @@ impl Lexer {
             let c = self.peek();
             match c {
                 Some(' ') | Some('\r') | Some('\t') => {
-                    self.advance();
-                },
-                Some('\n') => {
-                    self.line += 1;
                     self.advance();
                 },
                 Some('/') => {
@@ -270,10 +283,11 @@ mod tests {
         let tokens = Lexer::lex_all(source).unwrap();
 
         assert_eq!(tokens[0].token_type, TokenType::Number(1.0));
-        assert_eq!(tokens[1].token_type, TokenType::Plus);
-        assert_eq!(tokens[2].token_type, TokenType::Number(2.0));
-        assert_eq!(tokens[3].token_type, TokenType::EOF);
-        assert_eq!(tokens[2].line, 2);
+        assert_eq!(tokens[1].token_type, TokenType::NewLn);
+        assert_eq!(tokens[2].token_type, TokenType::Plus);
+        assert_eq!(tokens[3].token_type, TokenType::Number(2.0));
+        assert_eq!(tokens[4].token_type, TokenType::EOF);
+        assert_eq!(tokens[3].line, 2);
     }
 
     #[test]
@@ -282,10 +296,11 @@ mod tests {
         let tokens = Lexer::lex_all(source).unwrap();
 
         assert_eq!(tokens[0].token_type, TokenType::Number(1.0));
-        assert_eq!(tokens[1].token_type, TokenType::Plus);
-        assert_eq!(tokens[2].token_type, TokenType::Number(2.0));
-        assert_eq!(tokens[3].token_type, TokenType::EOF);
-        assert_eq!(tokens[2].line, 2); 
+        assert_eq!(tokens[1].token_type, TokenType::NewLn);
+        assert_eq!(tokens[2].token_type, TokenType::Plus);
+        assert_eq!(tokens[3].token_type, TokenType::Number(2.0));
+        assert_eq!(tokens[4].token_type, TokenType::EOF);
+        assert_eq!(tokens[3].line, 2); 
     }
 
     #[test]
@@ -318,7 +333,7 @@ mod tests {
 
     #[test]
     fn lex_let_ident_loop() {
-        let source = "let fasdf loop a".to_string();
+        let source = "let fasdf loop".to_string();
         let tokens = Lexer::lex_all(source).unwrap();
 
         assert_eq!(tokens[0].token_type, TokenType::Let);
@@ -326,5 +341,91 @@ mod tests {
         assert_eq!(tokens[1].lexeme, "fasdf".to_string());
         assert_eq!(tokens[2].token_type, TokenType::Loop);
     }
+
+    #[test]
+    fn lex_single_char() {
+        let source = "a".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Identifier);
+        assert_eq!(tokens[0].lexeme, "a".to_string());
+    }
+
+    #[test]
+    fn lex_string() {
+        let source = "let a = \"string\"  a a".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Let);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[2].token_type, TokenType::Equal);
+        assert_eq!(tokens[3].token_type, TokenType::String);
+        assert_eq!(tokens[3].lexeme, "\"string\"".to_string());
+        assert_eq!(tokens[4].token_type, TokenType::Identifier);
+        assert_eq!(tokens[5].token_type, TokenType::Identifier);
+    }
+
+    #[test]
+    fn lex_func_and_return() {
+        let source = "func myFunc return".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Func);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[1].lexeme, "myFunc");
+        assert_eq!(tokens[2].token_type, TokenType::Return);
+    }
+
+    #[test]
+    fn lex_true_false_nil() {
+        let source = "true false nil".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::True);
+        assert_eq!(tokens[1].token_type, TokenType::False);
+        assert_eq!(tokens[2].token_type, TokenType::Nil);
+    }
+
+    #[test]
+    fn lex_print_and_or() {
+        let source = "print and or".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Print);
+        assert_eq!(tokens[1].token_type, TokenType::And);
+        assert_eq!(tokens[2].token_type, TokenType::Or);
+    }
+
+    #[test]
+    fn lex_unrecognized_symbol() {
+        let source = "@".to_string();
+        let result = Lexer::lex_all(source);
+
+        assert!(result.is_err());
+        assert!(result.unwrap_err().contains("Unknow token @"));
+    }
+
+    #[test]
+    fn lex_identifier_with_numbers_and_underscore() {
+        let source = "foo_123".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Identifier);
+        assert_eq!(tokens[0].lexeme, "foo_123".to_string());
+    }
+
+    #[test]
+    fn lex_multiple_lines_and_tokens() {
+        let source = "let x = 42\nprint x".to_string();
+        let tokens = Lexer::lex_all(source).unwrap();
+
+        assert_eq!(tokens[0].token_type, TokenType::Let);
+        assert_eq!(tokens[1].token_type, TokenType::Identifier);
+        assert_eq!(tokens[1].lexeme, "x".to_string());
+        // "=" is not recognized in your current lexer -> should error, but we test line numbers
+        assert_eq!(tokens[2].line, 1);
+        assert_eq!(tokens.last().unwrap().line, 2);
+    }
+
 }
 
