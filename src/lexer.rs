@@ -150,18 +150,13 @@ impl Lexer {
                 }
             },
             'i' => self.check_keyword(1, "f", TokenType::If),
-            'l' => {
-                match self.chars[self.start + 1] {
-                    'e' => self.check_keyword(2, "t", TokenType::Let),
-                    'o' => self.check_keyword(2, "op", TokenType::Loop),
-                    _ => TokenType::Identifier
-                }
-            },
+            'l' => self.check_keyword(2, "t", TokenType::Let),
             'n' => self.check_keyword(1, "il", TokenType::Nil),
             'o' => self.check_keyword(1, "r", TokenType::Or),
             'p' => self.check_keyword(1, "rint", TokenType::Print),
             'r' => self.check_keyword(1, "eturn", TokenType::Return),
             't' => self.check_keyword(1, "rue", TokenType::True),
+            'w' => self.check_keyword(1, "hile", TokenType::While),
             _ => TokenType::Identifier
         }
     }
@@ -333,13 +328,13 @@ mod tests {
 
     #[test]
     fn lex_let_ident_loop() {
-        let source = "let fasdf loop".to_string();
+        let source = "let fasdf while".to_string();
         let tokens = Lexer::lex_all(source).unwrap();
 
         assert_eq!(tokens[0].token_type, TokenType::Let);
         assert_eq!(tokens[1].token_type, TokenType::Identifier);
         assert_eq!(tokens[1].lexeme, "fasdf".to_string());
-        assert_eq!(tokens[2].token_type, TokenType::Loop);
+        assert_eq!(tokens[2].token_type, TokenType::While);
     }
 
     #[test]
@@ -422,10 +417,8 @@ mod tests {
         assert_eq!(tokens[0].token_type, TokenType::Let);
         assert_eq!(tokens[1].token_type, TokenType::Identifier);
         assert_eq!(tokens[1].lexeme, "x".to_string());
-        // "=" is not recognized in your current lexer -> should error, but we test line numbers
         assert_eq!(tokens[2].line, 1);
         assert_eq!(tokens.last().unwrap().line, 2);
     }
-
 }
 

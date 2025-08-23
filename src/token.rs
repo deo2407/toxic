@@ -16,7 +16,7 @@ pub enum TokenType {
     Let, Equal,
     If, Else,
     Print,
-    Loop,
+    While,
     Func, Return,
     NewLn,
     LeftBrack, RightBrack,

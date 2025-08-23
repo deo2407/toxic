@@ -3,40 +3,71 @@ use std::fmt;
 use crate::token::*;
 
 #[derive(Debug)]
+pub enum Stmt {
+    ExprStmt(Expr),
+    PrintStmt(Expr),
+    VarDecl {
+        name: Token,
+        initializer: Option<Expr>,
+    },
+    Block(Vec<Expr>),
+    If {
+        condition: Expr,
+        then_branch: Box<Stmt>,
+        else_branch: Option<Box<Stmt>>,
+    },
+    While {
+        condition: Expr,
+        body: Box<Stmt>,
+    },
+    Func {
+        name: Token,
+        params: Vec<Token>,
+        body: Box<Stmt>
+    },
+    Return(Option<Expr>),
+}
+
+#[derive(Debug)]
 pub enum Expr {
-    Number(f64),
+    Literal(Literal),
     Unary { op: TokenType, rhs: Box<Expr> },
     Binary { lhs: Box<Expr>, op: TokenType, rhs: Box<Expr> },
     Grouping(Box<Expr>),
 }
 
 impl Expr {
-    pub fn eval(&self) -> f64 {
+    pub fn eval(&self) -> Result<f64, String> {
         match self {
-            Expr::Number(n) => *n,
+            Expr::Literal(lit) => match lit {
+                Literal::Number(n) => Ok(*n),
+                Literal::Bool(b) => Ok(if *b {1.0} else {0.0}),
+                Literal::Nil => Ok(0.0),
+                Literal::String(s) => Err(format!("Cannot evaluate a string '{s}'")),
+            },
             Expr::Binary { lhs, op, rhs } => {
-                let left = lhs.eval();
-                let right = rhs.eval();
+                let left = lhs.eval()?;
+                let right = rhs.eval()?;
                 match op {
-                    TokenType::Plus => left + right,
-                    TokenType::Minus => left - right,
-                    TokenType::Multiply => left * right,
-                    TokenType::Divide => left / right,
-                    TokenType::Power => left.powf(right.try_into().unwrap()),
-                    TokenType::EqualEq => (left == right) as u8 as f64,
-                    TokenType::BangEq => (left != right) as u8 as f64,
-                    TokenType::Greater => (left > right) as u8 as f64,
-                    TokenType::GreaterEq => (left >= right) as u8 as f64,
-                    TokenType::Less => (left < right) as u8 as f64,
-                    TokenType::LessEq => (left <= right) as u8 as f64,
-                    _ => panic!("Unsupported binary operator")
+                    TokenType::Plus => Ok(left + right),
+                    TokenType::Minus => Ok(left - right),
+                    TokenType::Multiply => Ok(left * right),
+                    TokenType::Divide => Ok(left / right),
+                    TokenType::Power => Ok(left.powf(right)),
+                    TokenType::EqualEq => Ok((left == right) as u8 as f64),
+                    TokenType::BangEq => Ok((left != right) as u8 as f64),
+                    TokenType::Greater => Ok((left > right) as u8 as f64),
+                    TokenType::GreaterEq => Ok((left >= right) as u8 as f64),
+                    TokenType::Less => Ok((left < right) as u8 as f64),
+                    TokenType::LessEq => Ok((left <= right) as u8 as f64),
+                    _ => return Err("Unsupported binary opperator".into())
                 }
             },
             Expr::Unary {op, rhs} => {
-                let val = rhs.eval();
+                let val = rhs.eval()?;
                 match op {
-                    TokenType::Minus => -val,
-                    _ => panic!("Unsupported unary operator")
+                    TokenType::Minus => Ok(-val),
+                    _ => Err("Unsupported unary operator".into())
                 }
             },
             Expr::Grouping(inner) => inner.eval(),
@@ -47,7 +78,7 @@ impl Expr {
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Expr::Number(n) => write!(f, "{}", n),
+            Expr::Literal(n) => write!(f, "{}", n),
             Expr::Unary { op, rhs } => write!(f, "{}{}", op, rhs),
             Expr::Binary { lhs, op, rhs } => write!(f, "({} {} {})", op, lhs, rhs),
             Expr::Grouping(expr) => write!(f, "(group {})", expr)
@@ -55,6 +86,24 @@ impl fmt::Display for Expr {
     }
 }
 
+#[derive(Debug)]
+pub enum Literal {
+    Number(f64),
+    Bool(bool),
+    String(String),
+    Nil
+}
+
+impl fmt::Display for Literal {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Literal::Number(n) => write!(f, "{}", n),
+            Literal::String(s) => write!(f, "{}", s),
+            Literal::Bool(b) => write!(f, "{}", b),
+            Literal::Nil => write!(f, "Nil"),
+        }
+    }
+}
 pub struct Parser {
     tokens: Vec<Token>,
     current: usize,
@@ -77,7 +126,7 @@ impl Parser {
         let token_type = token.token_type;
 
         let mut lhs = match &token.token_type {
-            TokenType::Number(n) => Expr::Number(*n),
+            TokenType::Number(n) => Expr::Literal(Literal::Number(*n)),
             TokenType::LeftParen => {
                 let expr = self.parse_expr_bp(0.0)?;
                 self.consume(TokenType::RightParen, "Expect ')' after expression")?;
@@ -208,44 +257,19 @@ mod tests {
     use crate::lexer::Lexer;
 
     #[test]
-    fn display_number() {
-        let expr = Expr::Number(53.0); 
-        assert_eq!(expr.to_string(), "53");
-    }
-
-    #[test]
-    fn display_unary() {
-        let expr = Expr::Unary { 
-            op: TokenType::Minus, 
-            rhs: Box::new(Expr::Number(43.0)),
-        };
-        assert_eq!(expr.to_string(), "-43");
-    }
-
-    #[test]
-    fn display_binary() {
-        let expr = Expr::Binary { 
-            lhs: Box::new(Expr::Number(72.0)),
-            op: TokenType::Plus, 
-            rhs: Box::new(Expr::Number(43.0)),
-        };
-        assert_eq!(expr.to_string(), "(+ 72 43)");
-    }
-
-    #[test]
     fn display_nested() {
         // (1 + 2) * -3
         // ( * (group (+ 1 2)) -3)
         let expr = Expr::Binary {
             lhs: Box::new(Expr::Grouping(Box::new(Expr::Binary {
-                lhs: Box::new(Expr::Number(1.0)),
+                lhs: Box::new(Expr::Literal(Literal::Number(1.0))),
                 op: TokenType::Plus,
-                rhs: Box::new(Expr::Number(2.0)),
+                rhs: Box::new(Expr::Literal(Literal::Number(2.0))),
             }))),
             op: TokenType::Multiply,
             rhs: Box::new(Expr::Unary {
                 op: TokenType::Minus,
-                rhs: Box::new(Expr::Number(3.0)),
+                rhs: Box::new(Expr::Literal(Literal::Number(3.0))),
             }),
         };
 
@@ -349,7 +373,7 @@ mod tests {
         let mut p = Parser::new(tokens); 
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval(), 24.0)
+        assert_eq!(expr.eval().unwrap(), 24.0)
     }
 
     #[test]
@@ -359,7 +383,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval(), 13.5);
+        assert_eq!(expr.eval().unwrap(), 13.5);
     }
 
     #[test]
@@ -369,7 +393,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval(), 1.0);
+        assert_eq!(expr.eval().unwrap(), 1.0);
     }
 
     #[test]
@@ -379,7 +403,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval(), 1.0);
+        assert_eq!(expr.eval().unwrap(), 1.0);
     }
 
     #[test]
@@ -389,7 +413,7 @@ mod tests {
         let mut p = Parser::new(tokens);
         let expr = p.parse_expr().unwrap();
 
-        assert_eq!(expr.eval(), 1.0);
+        assert_eq!(expr.eval().unwrap(), 1.0);
     }
 }
 

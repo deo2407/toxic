@@ -1,6 +1,8 @@
 #![allow(unused, dead_code)]
 
 use std::io::{self, prelude::*};
+use std::fs;
+use std::env;
 
 use crate::lexer::Lexer;
 use crate::parser::Parser;
@@ -12,13 +14,13 @@ mod parser;
 pub type Error = Box<dyn std::error::Error>;
 pub type Result<T> = std::result::Result<T, Error>;
 
-fn main() -> Result<()> {
+fn repl() {
     loop {
         print!("> ");
-        io::stdout().flush()?;
+        io::stdout().flush().unwrap();
         
         let mut contents = String::new();
-        io::stdin().read_line(&mut contents)?;
+        io::stdin().read_line(&mut contents).unwrap();
         let contents = contents.trim().to_string();
 
         if contents.is_empty() {
@@ -36,10 +38,39 @@ fn main() -> Result<()> {
         };
 
         let mut p = Parser::new(tokens);
-        let expr = p.parse_expr()?;
+        let expr = match p.parse_expr() {
+            Ok(expr) => expr,
+            Err(err) => {
+                println!("{err}");
+                continue;
+            }
+        };
 
-        println!("{}", expr);  
-        println!("{}", expr.eval());  
+        match expr.eval() {
+            Ok(res) => {
+                println!("{res}");  
+                println!("{expr}");  
+            },
+            Err(err) => eprintln!("{err}")
+        }
+    }
+}
+
+fn main() -> Result<()> {
+    let args: Vec<String> = env::args().collect();
+
+    if (args.len() == 1) {
+        repl();
+    } else if (args.len() == 2) {
+        let filename = args[1].to_string();
+        let contents = fs::read_to_string(filename)?; 
+        
+        let tokens = Lexer::lex_all(contents)?;
+        let mut p = Parser::new(tokens);
+        let expr = p.parse_expr()?;
+        println!("{}", expr.eval()?);
+    } else {
+        return Err("too many arguments provided".into());
     }
 
     Ok(())
